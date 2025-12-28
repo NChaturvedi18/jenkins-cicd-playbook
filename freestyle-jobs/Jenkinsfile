@@ -5,21 +5,31 @@ pipeline {
     agent any
     // Pipeline options: Configure build behavior
     options {
+        // Add timestamps to console output
         timestamps()
+        // Show colored output in console logs
         ansiColor('xterm')
+        // Used to limit the build time and manage build history
         timeout(time: 60, unit: 'MINUTES')
+        // How many builds to keep & how long to keep them
         buildDiscarder(logRotator(numToKeepStr: '10', daysToKeepStr: '30'))
     }
     // Parameters for user input in Freestyle jobs
     parameters {
-        string(name: 'BRANCH', defaultValue: 'main', description: 'Branch to build')
+        // Branch parameter to specify which branch to build
+        string(name: 'BRANCH', defaultValue: 'master', description: 'Branch to build')
+        // Boolean parameter to decide which tests to run
+        booleanParam(name: 'RUN_SANITY_TESTS', defaultValue: true, description: 'Run sanity tests')
+        booleanParam(name: 'RUN_SMOKE_TESTS', defaultValue: false, description: 'Run smoke tests')
+        booleanParam(name: 'RUN_REGRESSION_TESTS', defaultValue: false, description: 'Run regression tests')
         booleanParam(name: 'RUN_INTEGRATION_TESTS', defaultValue: false, description: 'Run integration tests')
     }
     stages {
-        // Checkout stage: Fetch and checkout the specified branch
+        // Checkout stage: This stage checks out the code from the specified branch
         stage('Checkout') {
             steps {
                 script {
+                    // Checkout stage: Fetch and checkout the specified branch
                     checkout([$class: 'GitSCM', branches: [[name: "*/${params.BRANCH}"]], userRemoteConfigs: [[url: 'https://github.com/your-repo.git']]])  // Replace with actual repo URL
                 }
             }
@@ -28,6 +38,7 @@ pipeline {
         // Build stage: Compile the project without running tests
         stage('Build') {
             steps {
+                // Compile the project using mackven without tests & package artifacts
                 sh 'mvn -B -DskipTests clean package'
             }
         }
@@ -38,15 +49,16 @@ pipeline {
                 sh 'mvn -B test'
             }
             post {
+                // Always publish JUnit test results
                 always { junit 'target/surefire-reports/**/*.xml' }
             }
         }
 
-        // Integration Tests stage: Run integration tests if enabled
-        stage('Integration Tests') {
-            when { expression { return params.RUN_INTEGRATION_TESTS } }
+        // Sanity Tests stage: Run sanity tests if enabled
+        stage('Sanity Tests') {
+            when { expression { return params.RUN_SANITY_TESTS } }
             steps {
-                sh 'mvn -B -Pintegration verify'
+                sh 'mvn -B -Psanity verify'
             }
             post {
                 always { junit 'target/failsafe-reports/**/*.xml' }
