@@ -1,68 +1,31 @@
-// Declarative Pipeline for CI/CD (Freestyle Job)
-// This pipeline is designed for Freestyle Jenkins jobs.
-// It includes build, test, and artifact archiving stages.
-pipeline {
+pipeline{
     agent any
-    // Pipeline options: Configure build behavior
-    options {
-        timestamps()
-        ansiColor('xterm')
-        timeout(time: 60, unit: 'MINUTES')
-        buildDiscarder(logRotator(numToKeepStr: '10', daysToKeepStr: '30'))
-    }
-    // Parameters for user input in Freestyle jobs
-    parameters {
-        string(name: 'BRANCH', defaultValue: 'main', description: 'Branch to build')
-        booleanParam(name: 'RUN_INTEGRATION_TESTS', defaultValue: false, description: 'Run integration tests')
-    }
-    stages {
-        // Checkout stage: Fetch and checkout the specified branch
-        stage('Checkout') {
-            steps {
-                script {
-                    checkout([$class: 'GitSCM', branches: [[name: "*/${params.BRANCH}"]], userRemoteConfigs: [[url: 'https://github.com/your-repo.git']]])  // Replace with actual repo URL
-                }
+    stages{
+        stage("Deploy Dev"){
+            when {
+                // This works only in multi branch pipeline
+                branch 'development'
+            }
+            steps{
+                echo "Deploying to Dev environment"
+            }
+        }
+        stage("Deploy Staging"){
+            when {
+                branch 'staging'
+            }
+            steps{
+                echo "Deploying to Staging environment"
             }
         }
 
-        // Build stage: Compile the project without running tests
-        stage('Build') {
-            steps {
-                sh 'mvn -B -DskipTests clean package'
+        stage("Deploy Prod"){
+            when {
+                branch 'master'
+            }
+            steps{
+                echo "Deploying to Prod environment"
             }
         }
-
-        // Unit Tests stage: Run unit tests and publish results
-        stage('Unit Tests') {
-            steps {
-                sh 'mvn -B test'
-            }
-            post {
-                always { junit 'target/surefire-reports/**/*.xml' }
-            }
-        }
-
-        // Integration Tests stage: Run integration tests if enabled
-        stage('Integration Tests') {
-            when { expression { return params.RUN_INTEGRATION_TESTS } }
-            steps {
-                sh 'mvn -B -Pintegration verify'
-            }
-            post {
-                always { junit 'target/failsafe-reports/**/*.xml' }
-            }
-        }
-
-        // Archive stage: Archive build artifacts for later use
-        stage('Archive') {
-            steps { archiveArtifacts artifacts: 'target/*.jar', fingerprint: true }
-        }
-    }
-    // Post-build actions: Run based on build result
-    post {
-        success { echo "Build succeeded: ${env.BUILD_URL}" }
-        unstable { echo "Build unstable: ${env.BUILD_URL}" }
-        failure { echo "Build failed: ${env.BUILD_URL}" }
-        always { cleanWs() }
     }
 }
