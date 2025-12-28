@@ -1,6 +1,6 @@
-// Declarative Pipeline for CI/CD (Freestyle Job)
-// This pipeline is designed for Freestyle Jenkins jobs.
-// It includes build, test, and artifact archiving stages.
+// Declarative Pipeline for Multibranch CI/CD
+// This pipeline is designed for Multibranch Pipeline jobs in Jenkins.
+// It includes build, test, and deployment stages based on the branch name.
 pipeline {
     agent any
     // Pipeline options: Configure build behavior
@@ -10,18 +10,15 @@ pipeline {
         timeout(time: 60, unit: 'MINUTES')
         buildDiscarder(logRotator(numToKeepStr: '10', daysToKeepStr: '30'))
     }
-    // Parameters for user input in Freestyle jobs
+    // Parameters for user input (optional for multibranch)
     parameters {
-        string(name: 'BRANCH', defaultValue: 'main', description: 'Branch to build')
         booleanParam(name: 'RUN_INTEGRATION_TESTS', defaultValue: false, description: 'Run integration tests')
     }
     stages {
-        // Checkout stage: Fetch and checkout the specified branch
+        // Checkout stage: Jenkins automatically checks out the branch
         stage('Checkout') {
             steps {
-                script {
-                    checkout([$class: 'GitSCM', branches: [[name: "*/${params.BRANCH}"]], userRemoteConfigs: [[url: 'https://github.com/your-repo.git']]])  // Replace with actual repo URL
-                }
+                echo "Checked out branch: ${env.BRANCH_NAME}"
             }
         }
 
@@ -51,6 +48,24 @@ pipeline {
             post {
                 always { junit 'target/failsafe-reports/**/*.xml' }
             }
+        }
+
+        // Deploy Dev stage: Deploy to development environment if on development branch
+        stage('Deploy Dev') {
+            when { branch 'development' }
+            steps { echo 'Deploying to Dev environment' }
+        }
+
+        // Deploy Staging stage: Deploy to staging environment if on staging branch
+        stage('Deploy Staging') {
+            when { branch 'staging' }
+            steps { echo 'Deploying to Staging environment' }
+        }
+
+        // Deploy Prod stage: Deploy to production environment if on master or main branch
+        stage('Deploy Prod') {
+            when { anyOf { branch 'master'; branch 'main' } }
+            steps { echo 'Deploying to Prod environment' }
         }
 
         // Archive stage: Archive build artifacts for later use
