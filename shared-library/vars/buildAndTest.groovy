@@ -1,5 +1,5 @@
 // vars/buildAndTest.groovy
-// Example shared library function for building and testing a Maven project
+// Example shared library function for building, testing, deploying, and archiving a Maven project
 
 def call(Map config = [:]) {
     // Default values
@@ -9,6 +9,7 @@ def call(Map config = [:]) {
     def withSonar = config.withSonar ?: false
     def jdkVersion = config.jdkVersion ?: 'default'
     def mavenVersion = config.mavenVersion ?: 'maven-3.8.6'
+    def deployTo = config.deployTo ?: null
 
     stage('Build') {
         withMaven(maven: mavenVersion, jdk: jdkVersion) {
@@ -16,30 +17,40 @@ def call(Map config = [:]) {
         }
     }
 
-    if (!skipTests) {
-        stage('Unit Tests') {
-            withMaven(maven: mavenVersion, jdk: jdkVersion) {
-                sh 'mvn -B test'
-                junit 'target/surefire-reports/**/*.xml'
+    stage('Test') {
+        if (!skipTests) {
+            stage('Unit Tests') {
+                withMaven(maven: mavenVersion, jdk: jdkVersion) {
+                    sh 'mvn -B test'
+                    junit 'target/surefire-reports/**/*.xml'
+                }
+            }
+
+            if (runIntegrationTests) {
+                stage('Integration Tests') {
+                    withMaven(maven: mavenVersion, jdk: jdkVersion) {
+                        sh 'mvn -B -Pintegration verify'
+                        junit 'target/failsafe-reports/**/*.xml'
+                    }
+                }
             }
         }
 
-        if (runIntegrationTests) {
-            stage('Integration Tests') {
-                withMaven(maven: mavenVersion, jdk: jdkVersion) {
-                    sh 'mvn -B -Pintegration verify'
-                    junit 'target/failsafe-reports/**/*.xml'
+        if (withSonar) {
+            stage('SonarQube Analysis') {
+                withSonarQubeEnv('SonarQube') {
+                    withMaven(maven: mavenVersion, jdk: jdkVersion) {
+                        sh 'mvn -B sonar:sonar'
+                    }
                 }
             }
         }
     }
 
-    if (withSonar) {
-        stage('SonarQube Analysis') {
-            withSonarQubeEnv('SonarQube') {
-                withMaven(maven: mavenVersion, jdk: jdkVersion) {
-                    sh 'mvn -B sonar:sonar'
-                }
+    stage('Deploy') {
+        if (deployTo) {
+            withMaven(maven: mavenVersion, jdk: jdkVersion) {
+                sh "mvn -B deploy -DaltDeploymentRepository=${deployTo}"
             }
         }
     }
