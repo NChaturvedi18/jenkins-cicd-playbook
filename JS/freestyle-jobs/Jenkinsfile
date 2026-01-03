@@ -1,5 +1,5 @@
-// Declarative Pipeline for CI/CD (Freestyle Job)
-// This pipeline is designed for Freestyle Jenkins jobs.
+// Declarative Pipeline for CI/CD (Freestyle Job) - JavaScript Version
+// This pipeline is designed for Freestyle Jenkins jobs using JavaScript/Node.js.
 // It includes build, test, and artifact archiving stages.
 pipeline {
     agent any
@@ -35,22 +35,26 @@ pipeline {
             }
         }
 
-        // Build stage: Compile the project without running tests
+        // Build stage: Install dependencies and build the project
         stage('Build') {
             steps {
-                // Compile the project using mackven without tests & package artifacts
-                sh 'mvn -B -DskipTests clean package'
+                nodejs(nodeJSInstallationName: 'node') {
+                    sh 'npm install'
+                    sh 'npm run build'
+                }
             }
         }
 
         // Unit Tests stage: Run unit tests and publish results
         stage('Unit Tests') {
             steps {
-                sh 'mvn -B test'
+                nodejs(nodeJSInstallationName: 'node') {
+                    sh 'npm test'
+                }
             }
             post {
-                // Always publish JUnit test results
-                always { junit 'target/surefire-reports/**/*.xml' }
+                // Always publish JUnit test results (assuming jest-junit or similar is configured)
+                always { junit 'test-results/**/*.xml' }
             }
         }
 
@@ -58,16 +62,18 @@ pipeline {
         stage('Sanity Tests') {
             when { expression { return params.RUN_SANITY_TESTS } }
             steps {
-                sh 'mvn -B -Psanity verify'
+                nodejs(nodeJSInstallationName: 'node') {
+                    sh 'npm run sanity'  // Assuming you have this script
+                }
             }
             post {
-                always { junit 'target/failsafe-reports/**/*.xml' }
+                always { junit 'test-results/sanity/**/*.xml' }
             }
         }
 
         // Archive stage: Archive build artifacts for later use
         stage('Archive') {
-            steps { archiveArtifacts artifacts: 'target/*.jar', fingerprint: true }
+            steps { archiveArtifacts artifacts: 'dist/**/*,build/**/*', fingerprint: true }
         }
     }
     // Post-build actions: Run based on build result

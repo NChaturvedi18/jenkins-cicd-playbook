@@ -1,5 +1,5 @@
-// Declarative Pipeline for Multibranch CI/CD
-// This pipeline is designed for Multibranch Pipeline jobs in Jenkins.
+// Declarative Pipeline for Multibranch CI/CD - JavaScript Version
+// This pipeline is designed for Multibranch Pipeline jobs in Jenkins using JavaScript/Node.js.
 // It includes build, test, and deployment stages based on the branch name.
 pipeline {
     agent any
@@ -22,20 +22,25 @@ pipeline {
             }
         }
 
-        // Build stage: Compile the project without running tests
+        // Build stage: Install dependencies and build the project
         stage('Build') {
             steps {
-                sh 'mvn -B -DskipTests clean package'
+                nodejs(nodeJSInstallationName: 'node') {
+                    sh 'npm install'
+                    sh 'npm run build'
+                }
             }
         }
 
         // Unit Tests stage: Run unit tests and publish results
         stage('Unit Tests') {
             steps {
-                sh 'mvn -B test'
+                nodejs(nodeJSInstallationName: 'node') {
+                    sh 'npm test'
+                }
             }
             post {
-                always { junit 'target/surefire-reports/**/*.xml' }
+                always { junit 'test-results/**/*.xml' }
             }
         }
 
@@ -43,10 +48,12 @@ pipeline {
         stage('Integration Tests') {
             when { expression { return params.RUN_INTEGRATION_TESTS } }
             steps {
-                sh 'mvn -B -Pintegration verify'
+                nodejs(nodeJSInstallationName: 'node') {
+                    sh 'npm run integration-test'  // Assuming you have this script
+                }
             }
             post {
-                always { junit 'target/failsafe-reports/**/*.xml' }
+                always { junit 'test-results/integration/**/*.xml' }
             }
         }
 
@@ -70,7 +77,7 @@ pipeline {
 
         // Archive stage: Archive build artifacts for later use
         stage('Archive') {
-            steps { archiveArtifacts artifacts: 'target/*.jar', fingerprint: true }
+            steps { archiveArtifacts artifacts: 'dist/**/*,build/**/*', fingerprint: true }
         }
     }
     // Post-build actions: Run based on build result
