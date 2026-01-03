@@ -1,0 +1,80 @@
+// Declarative Pipeline for CI/CD (Freestyle Job)
+// This pipeline is designed for Freestyle Jenkins jobs.
+// It includes build, test, and artifact archiving stages.
+pipeline {
+    agent any
+    // Pipeline options: Configure build behavior
+    options {
+        // Add timestamps to console output
+        timestamps()
+        // Show colored output in console logs
+        ansiColor('xterm')
+        // Used to limit the build time and manage build history
+        timeout(time: 60, unit: 'MINUTES')
+        // How many builds to keep & how long to keep them
+        buildDiscarder(logRotator(numToKeepStr: '10', daysToKeepStr: '30'))
+    }
+    // Parameters for user input in Freestyle jobs
+    parameters {
+        // Branch parameter to specify which branch to build
+        string(name: 'BRANCH', defaultValue: 'master', description: 'Branch to build')
+        // Boolean parameter to decide which tests to run
+        booleanParam(name: 'RUN_SANITY_TESTS', defaultValue: true, description: 'Run sanity tests')
+        booleanParam(name: 'RUN_SMOKE_TESTS', defaultValue: false, description: 'Run smoke tests')
+        booleanParam(name: 'RUN_REGRESSION_TESTS', defaultValue: false, description: 'Run regression tests')
+        booleanParam(name: 'RUN_INTEGRATION_TESTS', defaultValue: false, description: 'Run integration tests')
+    }
+    stages {
+        // Checkout stage: This stage checks out the code from the specified branch
+        stage('Checkout') {
+            steps {
+                script {
+                    // Checkout stage: Fetch and checkout the specified branch
+                    checkout([$class: 'GitSCM', branches: [[name: "*/${params.BRANCH}"]], userRemoteConfigs: [[url: 'https://github.com/your-repo.git']]])  // Replace with actual repo URL
+                }
+            }
+        }
+
+        // Build stage: Compile the project without running tests
+        stage('Build') {
+            steps {
+                // Compile the project using maven without tests & package artifacts
+                sh 'mvn -B -DskipTests clean package'
+            }
+        }
+
+        // Unit Tests stage: Run unit tests and publish results
+        stage('Unit Tests') {
+            steps {
+                sh 'mvn -B test'
+            }
+            post {
+                // Always publish JUnit test results
+                always { junit 'target/surefire-reports/**/*.xml' }
+            }
+        }
+
+        // Sanity Tests stage: Run sanity tests if enabled
+        stage('Sanity Tests') {
+            when { expression { return params.RUN_SANITY_TESTS } }
+            steps {
+                sh 'mvn -B -Psanity verify'
+            }
+            post {
+                always { junit 'target/failsafe-reports/**/*.xml' }
+            }
+        }
+
+        // Archive stage: Archive build artifacts for later use
+        stage('Archive') {
+            steps { archiveArtifacts artifacts: 'target/*.jar', fingerprint: true }
+        }
+    }
+    // Post-build actions: Run based on build result
+    post {
+        success { echo "Build succeeded: ${env.BUILD_URL}" }
+        unstable { echo "Build unstable: ${env.BUILD_URL}" }
+        failure { echo "Build failed: ${env.BUILD_URL}" }
+        always { cleanWs() }
+    }
+}

@@ -1,0 +1,83 @@
+// Declarative Pipeline for Multibranch CI/CD
+// This pipeline is designed for Multibranch Pipeline jobs in Jenkins.
+// It includes build, test, and deployment stages based on the branch name.
+pipeline {
+    agent any
+    // Pipeline options: Configure build behavior
+    options {
+        timestamps()
+        ansiColor('xterm')
+        timeout(time: 60, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '10', daysToKeepStr: '30'))
+    }
+    // Parameters for user input (optional for multibranch)
+    parameters {
+        booleanParam(name: 'RUN_INTEGRATION_TESTS', defaultValue: false, description: 'Run integration tests')
+    }
+    stages {
+        // Checkout stage: Jenkins automatically checks out the branch
+        stage('Checkout') {
+            steps {
+                echo "Checked out branch: ${env.BRANCH_NAME}"
+            }
+        }
+
+        // Build stage: Compile the project without running tests
+        stage('Build') {
+            steps {
+                sh 'mvn -B -DskipTests clean package'
+            }
+        }
+
+        // Unit Tests stage: Run unit tests and publish results
+        stage('Unit Tests') {
+            steps {
+                sh 'mvn -B test'
+            }
+            post {
+                always { junit 'target/surefire-reports/**/*.xml' }
+            }
+        }
+
+        // Integration Tests stage: Run integration tests if enabled
+        stage('Integration Tests') {
+            when { expression { return params.RUN_INTEGRATION_TESTS } }
+            steps {
+                sh 'mvn -B -Pintegration verify'
+            }
+            post {
+                always { junit 'target/failsafe-reports/**/*.xml' }
+            }
+        }
+
+        // Deploy Dev stage: Deploy to development environment if on development branch
+        stage('Deploy Dev') {
+            when { branch 'development' }
+            steps { echo 'Deploying to Dev environment' }
+        }
+
+        // Deploy Staging stage: Deploy to staging environment if on staging branch
+        stage('Deploy Staging') {
+            when { branch 'staging' }
+            steps { echo 'Deploying to Staging environment' }
+        }
+
+        // Deploy Prod stage: Deploy to production environment if on master or main branch
+        stage('Deploy Prod') {
+            when { anyOf { branch 'master'; branch 'main' } }
+            steps { echo 'Deploying to Prod environment' }
+        }
+
+        // Archive stage: Archive build artifacts for later use
+        stage('Archive') {
+            steps { archiveArtifacts artifacts: 'target/*.jar', fingerprint: true }
+        }
+    }
+    // Post-build actions: Run based on build result
+    post {
+        success { echo "Build succeeded: ${env.BUILD_URL}" }
+        unstable { echo "Build unstable: ${env.BUILD_URL}" }
+        failure { echo "Build failed: ${env.BUILD_URL}" }
+        always { cleanWs() }
+    }
+}
