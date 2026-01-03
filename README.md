@@ -7,6 +7,8 @@ This repository provides comprehensive examples of Jenkins CI/CD pipeline config
 - **[freestyle-jobs/](freestyle-jobs/)**: Examples of traditional freestyle jobs and their conversion to declarative pipelines.
 - **[multibranch/](multibranch/)**: Multibranch pipeline examples for branch-based automation.
 - **[shared-library/](shared-library/)**: Reusable shared library code for common pipeline functions.
+- **[JAVA/](JAVA/)**: Java/Maven specific pipeline examples and configurations.
+- **[JS/](JS/)**: JavaScript/Node.js specific pipeline examples and configurations.
 
 ## Prerequisites
 
